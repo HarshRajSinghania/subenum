@@ -38,3 +38,14 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+
+  # Codespaces and the devcontainer CI job use digest-pinned images (#187).
+  - package-ecosystem: "devcontainers"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      devcontainers:
+        patterns: ["*"]
+    labels:
+      - "dependencies"
