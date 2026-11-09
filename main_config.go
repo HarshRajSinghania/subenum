@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -212,8 +213,30 @@ func (d *defaultsLoader) printConfig(w io.Writer, fset *flag.FlagSet) {
 		if given[fl.Name] {
 			source = sourceFlag
 		}
-		_, _ = fmt.Fprintf(w, "%-14s = %-24q (%s)\n", fl.Name, fl.Value.String(), source)
+		value := fl.Value.String()
+		if fl.Name == "attempts" {
+			value, source = d.effectiveAttempts(fset, value, source)
+		}
+		_, _ = fmt.Fprintf(w, "%-14s = %-24q (%s)\n", fl.Name, value, source)
 	})
+}
+
+// effectiveAttempts resolves -attempts, whose flag value 0 means "unset", to
+// the value a scan uses, merging the deprecated -retries (#153).
+func (d *defaultsLoader) effectiveAttempts(fset *flag.FlagSet, value, source string) (string, string) {
+	attempts, aerr := strconv.Atoi(value)
+	retries, rerr := strconv.Atoi(fset.Lookup("retries").Value.String())
+	if aerr != nil || rerr != nil {
+		return value, source
+	}
+	n, fromRetries, err := effectiveAttempts(attempts, retries, d.source(fset, "attempts"), d.source(fset, "retries"))
+	if err != nil {
+		return value, source
+	}
+	if fromRetries {
+		source = d.source(fset, "retries") + ", from retries"
+	}
+	return strconv.Itoa(n), source
 }
 
 // settings returns the effective value of every setting that came from the

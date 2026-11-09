@@ -53,7 +53,8 @@ func TestDefaultsPrecedence(t *testing.T) {
 
 	var out bytes.Buffer
 	d.printConfig(&out, fs)
-	for _, want := range []string{`dns-server     = "1.1.1.1:53"`, "(config)", `rate           = "300"`, "(env)", `t              = "30"`, "(flag)", `timeout        = "1000"`, "(default)"} {
+	for _, want := range []string{`dns-server     = "1.1.1.1:53"`, "(config)", `rate           = "300"`, "(env)", `t              = "30"`, "(flag)", `timeout        = "1000"`, "(default)",
+		`attempts       = "1"`} { // the effective value, not the flag's unset 0 (#153)
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("-print-config lacks %q:\n%s", want, out.String())
 		}
