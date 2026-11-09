@@ -34,6 +34,25 @@ func TestScopeMatching(t *testing.T) {
 	}
 }
 
+// TestScopeIDNPatterns covers #152: IDN patterns are accepted and matched in
+// punycode, as targets are scanned.
+func TestScopeIDNPatterns(t *testing.T) {
+	patterns := []string{"mail.bücher.de", "*.dev.Bücher.de"}
+	if err := ValidateExcludes(patterns); err != nil {
+		t.Fatalf("ValidateExcludes rejected IDN patterns: %v", err)
+	}
+	sc := newScope(patterns)
+	for name, want := range map[string]bool{
+		"mail.xn--bcher-kva.de":    true,
+		"api.dev.xn--bcher-kva.de": true,
+		"www.xn--bcher-kva.de":     false,
+	} {
+		if got := sc.excluded(name); got != want {
+			t.Errorf("excluded(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
 // TestRunExcludeSendsNoQueriesInBranch is #87's done-when: a recursive scan
 // with -exclude '*.dev.example.com' never queries under that branch, wildcard
 // probes included, and accounts for the excluded candidates.

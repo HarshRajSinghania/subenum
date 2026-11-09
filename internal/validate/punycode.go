@@ -17,6 +17,10 @@ const (
 	pcInitialN    = 128
 )
 
+// ToASCII converts a lowercased name to its punycode form, as NormalizeDomain
+// does for targets; ASCII labels, including a "*" wildcard, pass through.
+func ToASCII(name string) (string, error) { return toASCII(name) }
+
 // toASCII converts a lowercased domain to its ASCII (A-label) form: every
 // label with non-ASCII characters becomes "xn--" plus its Punycode encoding.
 // It implements only the RFC 3492 encoder, not full UTS #46 mapping, which

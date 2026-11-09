@@ -15,8 +15,15 @@ type scope struct {
 	suffixes []string // "*.x" patterns, stored as "x"
 }
 
+// normalizePattern puts a pattern in the form targets are scanned in:
+// lowercase, no trailing dot, IDNs in punycode (#152). A pattern that cannot
+// be converted is left as is, so ValidateExcludes rejects it.
 func normalizePattern(p string) string {
-	return strings.ToLower(strings.TrimSuffix(strings.TrimSpace(p), "."))
+	n := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(p), "."))
+	if ascii, err := validate.ToASCII(n); err == nil {
+		return ascii
+	}
+	return n
 }
 
 // ValidateExcludes checks that every pattern is a domain or *.domain.
