@@ -214,7 +214,8 @@ jobs:
     - name: Check completions and man page
       shell: bash
       run: |
-        sudo apt-get install -y -qq zsh fish groff >/dev/null
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq --no-install-recommends zsh fish groff
         tar -xzf dist/subenum_*_linux_amd64.tar.gz -C "$RUNNER_TEMP"
         bash -n "$RUNNER_TEMP/completions/subenum.bash"
         zsh -n "$RUNNER_TEMP/completions/_subenum"
