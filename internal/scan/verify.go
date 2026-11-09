@@ -73,18 +73,27 @@ func Verify(ctx context.Context, cfg Config, names []string) (map[string]dns.Out
 			}
 		})
 	}
-feed:
-	for _, name := range names {
+	var undispatched []string
+	for i, name := range names {
 		if sc.excluded(name) {
 			continue
 		}
 		select {
 		case work <- name:
+			continue
 		case <-ctx.Done():
-			break feed
 		}
+		undispatched = names[i:]
+		break
 	}
 	close(work)
 	wg.Wait()
+	// Names never handed to a worker were cancelled too; without an entry a
+	// caller would read the zero value, OutcomeFound (#151).
+	for _, name := range undispatched {
+		if !sc.excluded(name) {
+			out[name] = dns.OutcomeCanceled
+		}
+	}
 	return out, sent.Load()
 }

@@ -2,6 +2,7 @@ package scan
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/TMHSDigital/subenum/internal/dns"
@@ -39,6 +40,37 @@ func TestVerify(t *testing.T) {
 	for name, o := range got {
 		if o != dns.OutcomeCanceled && o != dns.OutcomeFound {
 			t.Errorf("cancelled: %s = %v", name, o)
+		}
+	}
+}
+
+// TestVerifyCancelledMidwayReportsEveryName covers #151: names never handed
+// to a worker are reported cancelled, not left out (which reads as found).
+func TestVerifyCancelledMidwayReportsEveryName(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfg := Config{
+		Concurrency: 1,
+		Exclude:     []string{"skip.example.com"},
+		resolveHook: func(context.Context, string) ([]dns.Record, dns.Outcome) {
+			cancel()
+			return nil, dns.OutcomeNXDomain
+		},
+	}
+	names := []string{"skip.example.com"}
+	for i := range 50 {
+		names = append(names, fmt.Sprintf("n%d.example.com", i))
+	}
+	got, _ := Verify(ctx, cfg, names)
+	if len(got) != len(names)-1 {
+		t.Fatalf("got %d outcomes, want %d (every name but the excluded one)", len(got), len(names)-1)
+	}
+	if _, ok := got["skip.example.com"]; ok {
+		t.Error("the excluded name has an outcome")
+	}
+	for name, o := range got {
+		if o == dns.OutcomeFound {
+			t.Errorf("%s reported found after cancellation", name)
 		}
 	}
 }

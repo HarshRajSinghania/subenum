@@ -151,11 +151,14 @@ func emitRemoved(ctx context.Context, d *differ, targets []string, f cliFlags, m
 	cfg.Pool = nil // the trusted resolver decides
 	outcomes, sent := scan.Verify(ctx, cfg, missing)
 	for _, name := range missing {
-		switch outcomes[name] {
-		case dns.OutcomeNXDomain:
+		outcome, checked := outcomes[name]
+		switch {
+		case !checked:
+			diffSummary.Unverified++ // never looked up; not a found name (#151)
+		case outcome == dns.OutcomeNXDomain:
 			d.removed++
 			out.Emit(output.Result{Subdomain: name, Records: []dns.Record{}, Change: "removed"})
-		case dns.OutcomeFound:
+		case outcome == dns.OutcomeFound:
 			diffSummary.StillResolving++
 		default:
 			diffSummary.Unverified++
