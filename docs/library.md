@@ -76,7 +76,7 @@ Read the channel until it closes, or cancel `ctx`. Breaking out of the loop with
 | `MaxQueries` | unlimited | Cap on candidate names tested. |
 | `Exclude` | none | Out-of-scope names and `*.parent` branches, never queried. |
 | `Force` | off | Scan a wildcard zone, dropping answers that match its fingerprint. |
-| `NoAbort` | off | Keep going when more than a fifth of lookups fail. |
+| `NoAbort` | off | Keep going when more than a fifth of lookups fail. `Run` still sends the warning as a `KindError` event; `Scan` returns no error for a scan that finished. |
 | `Simulate`, `HitRate`, `Seed` | off, `15`, random | Synthetic results with no DNS traffic, for tests and demos. |
 
 ## Accounting

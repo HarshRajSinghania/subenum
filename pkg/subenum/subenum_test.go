@@ -3,6 +3,7 @@ package subenum_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"runtime"
 	"slices"
 	"strings"
@@ -389,6 +390,61 @@ func TestRateLimitIsApplied(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed < time.Second {
 		t.Errorf("40 queries at 20/s took %s, want at least a second", elapsed)
+	}
+}
+
+// TestNoAbortScanSucceedsDespiteFailingLookups covers #149: under NoAbort
+// the reliability guard only warns, so a completed Scan returns no error,
+// while Run still reports the warning.
+func TestNoAbortScanSucceedsDespiteFailingLookups(t *testing.T) {
+	srv := dnstest.Start(t, func(q dnstest.Query) dnstest.Reply {
+		if strings.HasPrefix(q.Name, "bad") {
+			return dnstest.Refused
+		}
+		return dnstest.NXDomain
+	})
+	words := make([]string, 0, 300)
+	for i := range 300 {
+		if i%2 == 0 {
+			words = append(words, fmt.Sprintf("bad%d", i))
+		} else {
+			words = append(words, fmt.Sprintf("ok%d", i))
+		}
+	}
+	cfg := subenum.Config{
+		Domain:   "lab.example",
+		Words:    words,
+		Resolver: srv.Addr,
+		Timeout:  2 * time.Second,
+		Attempts: 1,
+		NoAbort:  true,
+	}
+	results, stats, err := subenum.Scan(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("Scan with NoAbort returned %v, want nil", err)
+	}
+	if stats.Aborted || stats.Total() != int64(len(words)) {
+		t.Fatalf("stats = %+v, want a complete scan of %d names", stats, len(words))
+	}
+	if len(results) != 0 {
+		t.Errorf("results = %v, want none", names(results))
+	}
+
+	events, err := subenum.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	warned := false
+	for ev := range events {
+		warned = warned || ev.Kind == subenum.KindError
+	}
+	if !warned {
+		t.Error("Run sent no KindError warning from the reliability guard")
+	}
+
+	cfg.NoAbort = false
+	if _, stats, err := subenum.Scan(context.Background(), cfg); err == nil || !stats.Aborted {
+		t.Errorf("without NoAbort: err = %v, Aborted = %v; want an error and an aborted scan", err, stats.Aborted)
 	}
 }
 

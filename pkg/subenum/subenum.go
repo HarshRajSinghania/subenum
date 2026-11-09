@@ -112,7 +112,9 @@ type Config struct {
 	// NoAbort keeps scanning when more than a fifth of lookups fail.
 	// Without it the scan stops early and Stats.Aborted is set, because a
 	// resolver that is failing cannot be distinguished from a domain whose
-	// names do not exist.
+	// names do not exist. With it, Run still sends the reliability
+	// warning as a KindError event, but the scan finishes and Scan
+	// returns no error for it.
 	NoAbort bool
 
 	// Simulate invents results instead of sending DNS queries, for demos,
@@ -213,6 +215,8 @@ const (
 	// the scan: the domain is out of scope, the resolver failed a
 	// preflight check, the domain is a wildcard zone and Force is not
 	// set, or the reliability guard gave up. Few or no results follow.
+	// The exception is the reliability guard under Config.NoAbort: its
+	// warning arrives as a KindError, and the scan then runs to the end.
 	KindError
 	// KindDone is always the last event, and reports Event.Stats. It
 	// arrives whether the scan completed, never started, was stopped by
@@ -407,6 +411,7 @@ func Scan(ctx context.Context, cfg Config) ([]Result, Stats, error) {
 	var results []Result
 	var stats Stats
 	var failure string
+	completed := false
 	for ev := range events {
 		switch ev.Kind {
 		case KindResult:
@@ -417,7 +422,14 @@ func Scan(ctx context.Context, cfg Config) ([]Result, Stats, error) {
 			}
 		case KindDone:
 			stats = ev.Stats
+			completed = !ev.Stopped
 		}
+	}
+	// Under NoAbort the reliability guard only warns: it is the one error
+	// after which the scan still runs to completion, so a completed scan
+	// that was not aborted is a success.
+	if cfg.NoAbort && completed && !stats.Aborted {
+		failure = ""
 	}
 	switch {
 	case ctx.Err() != nil:
