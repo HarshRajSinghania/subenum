@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/TMHSDigital/subenum/internal/output"
 	"github.com/TMHSDigital/subenum/internal/scan"
@@ -155,23 +156,34 @@ func (st *resumeState) checkSettings(fs *flag.FlagSet, d *defaultsLoader) error 
 func resumeArgs(args []string) ([]string, *resumeState, error) {
 	idx := -1
 	path := ""
-	for i, a := range args {
-		switch {
-		case a == "-resume" || a == "--resume":
-			if i+1 < len(args) {
-				idx, path = i, args[i+1]
-			} else {
+scan:
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			break scan // everything after is a positional argument (#166)
+		}
+		if a == "-resume" || a == "--resume" {
+			rest := args[i+1:]
+			if len(rest) == 0 {
 				return nil, nil, fmt.Errorf("-resume needs a state file")
 			}
-		case len(a) > 8 && (a[:8] == "-resume=" || (len(a) > 9 && a[:9] == "--resume=")):
-			idx, path = i, a[len("-resume="):]
-			if a[1] == '-' {
-				path = a[len("--resume="):]
-			}
+			idx, path = i, rest[0]
+			i++ // the state file is a value, not another flag
+			continue
+		}
+		v, ok := strings.CutPrefix(a, "--resume=")
+		if !ok {
+			v, ok = strings.CutPrefix(a, "-resume=")
+		}
+		if ok {
+			idx, path = i, v
 		}
 	}
 	if idx < 0 {
 		return args, nil, nil
+	}
+	if path == "" {
+		return nil, nil, fmt.Errorf("-resume needs a state file")
 	}
 	if len(args) > 2 || (len(args) == 2 && path != args[1]) {
 		return nil, nil, fmt.Errorf("-resume takes no other arguments; the state file holds the original ones")

@@ -567,9 +567,9 @@ func run() (code int) {
 	if parseErr != nil {
 		// The FlagSet has already printed the error and usage.
 		if errors.Is(parseErr, flag.ErrHelp) {
-			return 0
+			return exitOK
 		}
-		return 2
+		return exitUsage
 	}
 
 	// -tui counts only as a real flag, not as the value of another flag
@@ -589,14 +589,17 @@ func run() (code int) {
 	// -version answers before anything else prints, banners included (#58).
 	if f.showVersion {
 		fmt.Println(formatVersion())
-		return 0
+		return exitOK
 	}
 
 	format, formatErr := output.ParseFormat(f.format)
 	recordTypes, typesErr := dns.ParseTypes(f.recordTypes)
-	maxAttempts, err := resolveAttempts(f.attempts, f.retries, defaults.source(fs, "attempts"), defaults.source(fs, "retries"))
+	maxAttempts, fromRetries, err := effectiveAttempts(f.attempts, f.retries, defaults.source(fs, "attempts"), defaults.source(fs, "retries"))
 	out := output.New(nil, f.testMode, format)
 	out.SetQuiet(f.silent)
+	if fromRetries {
+		out.Info("Warning: -retries is deprecated, use -attempts instead") // quiet under -silent (#166)
+	}
 	if formatErr != nil {
 		out.Error("%v", formatErr)
 		return exitUsage
@@ -660,7 +663,7 @@ func run() (code int) {
 
 	targets, ok := loadTargets(f, domain, out)
 	if !ok {
-		return 1
+		return exitFailure
 	}
 	if f.simZone != "" {
 		stop, ok := startLabZone(&f, targets, out)
@@ -699,11 +702,11 @@ func run() (code int) {
 	wordLines, err := readWordlist(f)
 	if err != nil {
 		out.Error("reading wordlist file: %v", err)
-		return 1
+		return exitFailure
 	}
 	if probe, _, _ := wordlist.Build(wordLines, ""); len(probe) == 0 {
 		out.Error("wordlist %s has no valid entries", f.wordlistFile)
-		return 1
+		return exitFailure
 	}
 	if resume != nil {
 		// The bundled wordlist changes with the binary, so the file digests
@@ -730,7 +733,7 @@ func run() (code int) {
 
 	combined, outFile, ok := openOutputFile(f.outputFile, f.testMode, format, out)
 	if !ok {
-		return 1
+		return exitFailure
 	}
 	var outWriter *bufio.Writer
 	if outFile != nil {
@@ -1181,20 +1184,11 @@ func scanTarget(ctx context.Context, f cliFlags, domain string, entries []string
 	return res
 }
 
-// resolveAttempts merges the -attempts and deprecated -retries flags. When
+// effectiveAttempts merges the -attempts and deprecated -retries flags. When
 // both are set, the one from the higher-precedence source wins (a flag over
 // an env value over the config file); both at the same level is an error
-// (#116).
-func resolveAttempts(attempts, retries int, attemptsSrc, retriesSrc string) (int, error) {
-	n, fromRetries, err := effectiveAttempts(attempts, retries, attemptsSrc, retriesSrc)
-	if fromRetries {
-		fmt.Fprintln(os.Stderr, "Warning: -retries is deprecated, use -attempts instead")
-	}
-	return n, err
-}
-
-// effectiveAttempts is resolveAttempts without the deprecation warning. It
-// also reports whether the value came from -retries.
+// (#116). fromRetries reports that the value came from -retries, so the
+// caller can print the deprecation warning.
 func effectiveAttempts(attempts, retries int, attemptsSrc, retriesSrc string) (n int, fromRetries bool, err error) {
 	attemptsSet := attempts != 0
 	retriesSet := retries != 0

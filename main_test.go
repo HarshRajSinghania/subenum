@@ -124,21 +124,28 @@ func TestParseFlagsInvalidAfterDomain(t *testing.T) {
 	fs.SetOutput(io.Discard)
 }
 
-func TestResolveAttempts(t *testing.T) {
+func TestEffectiveAttempts(t *testing.T) {
+	resolve := func(attempts, retries int, aSrc, rSrc string) (int, error) {
+		n, _, err := effectiveAttempts(attempts, retries, aSrc, rSrc)
+		return n, err
+	}
+	if _, fromRetries, _ := effectiveAttempts(0, 3, sourceDefault, sourceFlag); !fromRetries {
+		t.Error("-retries=3: fromRetries is false, want the deprecation warning")
+	}
 	d, fl := sourceDefault, sourceFlag
-	got, err := resolveAttempts(0, 0, d, d)
+	got, err := resolve(0, 0, d, d)
 	if err != nil || got != 1 {
 		t.Errorf("default: got %d, err %v; want 1, nil", got, err)
 	}
-	got, err = resolveAttempts(5, 0, fl, d)
+	got, err = resolve(5, 0, fl, d)
 	if err != nil || got != 5 {
 		t.Errorf("-attempts=5: got %d, err %v; want 5, nil", got, err)
 	}
-	got, err = resolveAttempts(0, 3, d, fl)
+	got, err = resolve(0, 3, d, fl)
 	if err != nil || got != 3 {
 		t.Errorf("-retries=3: got %d, err %v; want 3, nil", got, err)
 	}
-	_, err = resolveAttempts(5, 3, fl, fl)
+	_, err = resolve(5, 3, fl, fl)
 	if err == nil {
 		t.Error("both set: expected error, got nil")
 	}
@@ -152,12 +159,12 @@ func TestResolveAttempts(t *testing.T) {
 		{2, 2, sourceFlag, sourceEnv, 2},
 		{4, 2, sourceEnv, sourceConfig, 4},
 	} {
-		got, err := resolveAttempts(c.attempts, c.retries, c.aSrc, c.rSrc)
+		got, err := resolve(c.attempts, c.retries, c.aSrc, c.rSrc)
 		if err != nil || got != c.want {
 			t.Errorf("%+v: got %d, err %v; want %d", c, got, err, c.want)
 		}
 	}
-	if _, err := resolveAttempts(3, 2, sourceEnv, sourceEnv); err == nil {
+	if _, err := resolve(3, 2, sourceEnv, sourceEnv); err == nil {
 		t.Error("both from env: expected error")
 	}
 }

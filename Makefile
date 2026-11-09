@@ -129,7 +129,7 @@ help:
 	@echo "  make test-short       - Run short tests"
 	@echo "  make clean            - Clean build artifacts"
 	@echo "  make lint             - Run linter"
-	@echo "  make tidy             - go mod tidy (keeps go 1.24.2)"
+	@echo "  make tidy             - go mod tidy (keeps go 1.26.0)"
 	@echo "  make tui              - Launch the interactive terminal UI (no arguments needed)"
 	@echo ""
 	@echo "  LIVE MODE (performs real DNS queries):"

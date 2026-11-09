@@ -133,6 +133,27 @@ func TestE2EResumePermute(t *testing.T) {
 	}
 }
 
+// TestResumeArgsParsing covers #166: an empty -resume= is an error, and
+// -resume after "--" is a positional argument, not the flag.
+func TestResumeArgsParsing(t *testing.T) {
+	for _, args := range [][]string{{"-resume="}, {"--resume="}, {"-resume"}} {
+		if _, _, err := resumeArgs(args); err == nil || !strings.Contains(err.Error(), "needs a state file") {
+			t.Errorf("%q: err = %v, want \"needs a state file\"", args, err)
+		}
+	}
+	args := []string{"-simulate", "--", "-resume"}
+	got, st, err := resumeArgs(args)
+	if err != nil || st != nil || len(got) != len(args) {
+		t.Errorf("-resume after --: got %q, state %v, err %v; want the arguments unchanged", got, st, err)
+	}
+	path := writeState(t, resumeState{Args: []string{"-simulate", "example.com"}})
+	for _, args := range [][]string{{"-resume", path}, {"--resume=" + path}} {
+		if got, st, err := resumeArgs(args); err != nil || st == nil || len(got) != 2 {
+			t.Errorf("%q: got %q, err %v", args, got, err)
+		}
+	}
+}
+
 // TestE2EResumeCountsRefoundNamesOnce covers #156: the resume point lags the
 // saved results by up to a worker pool's worth of names, so a resumed scan
 // finds some of them again; they are counted once.
