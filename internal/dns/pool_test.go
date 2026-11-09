@@ -61,3 +61,22 @@ func TestPoolRotatesAndBenches(t *testing.T) {
 		t.Fatal("resolver never returned after its bench")
 	}
 }
+
+func TestPoolPickPrefersAvoidedHealthyOverBenched(t *testing.T) {
+	p := NewPool([]string{"192.0.2.1:53", "192.0.2.2:53"}, time.Second)
+	now := time.Unix(0, 0)
+	p.now = func() time.Time { return now }
+	healthy, benched := p.members[0], p.members[1]
+	benched.until = now.Add(30 * time.Second)
+
+	for i := 0; i < 4; i++ {
+		if got := p.pick(healthy); got != healthy {
+			t.Fatalf("pick(healthy) = %s, want the healthy avoided member over the benched one", got.Addr)
+		}
+	}
+	// With every member benched, the one whose bench ends soonest is used.
+	healthy.until = now.Add(time.Minute)
+	if got := p.pick(healthy); got != benched {
+		t.Fatalf("all benched: pick = %s, want the soonest-unbenched member", got.Addr)
+	}
+}

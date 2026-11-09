@@ -148,9 +148,10 @@ func (p *Pool) canary() string {
 	return name
 }
 
-// pick returns the next healthy resolver, skipping avoid when possible. When
-// every usable resolver is benched, the one whose bench ends soonest is used.
-// Flagged resolvers are never returned; nil means none is left.
+// pick returns the next healthy resolver, skipping avoid when possible. The
+// preference order is: healthy and not avoid, then avoid if it is healthy,
+// then the benched resolver whose bench ends soonest. Flagged resolvers are
+// never returned; nil means none is left.
 func (p *Pool) pick(avoid *PoolResolver) *PoolResolver {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -178,10 +179,10 @@ func (p *Pool) pick(avoid *PoolResolver) *PoolResolver {
 		p.next = (p.next + i + 1) % n
 		return m
 	}
-	if fallback != nil {
-		return fallback
+	if avoided != nil {
+		return avoided
 	}
-	return avoided
+	return fallback
 }
 
 // pickHealthy returns the next member other than avoid that is neither
