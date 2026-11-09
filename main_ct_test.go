@@ -67,6 +67,28 @@ func TestE2ECertificateTransparency(t *testing.T) {
 	}
 }
 
+// TestE2ESimulateSkipsCT covers #150: simulation mode sends nothing off the
+// machine, so -ct is ignored with a note instead of querying crt.sh.
+func TestE2ESimulateSkipsCT(t *testing.T) {
+	hit := false
+	ct := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hit = true
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer ct.Close()
+	ctBaseURL = ct.URL + "/"
+	t.Cleanup(func() { ctBaseURL = "" })
+
+	wl := writeFile(t, "wl.txt", "www\nmail\n")
+	code, out := runCLIMerged(t, "-ct", "-simulate", "-seed", "1", "-progress=false", "-w", wl, "example.com")
+	if code != 0 || !strings.Contains(out, "-ct is ignored in simulation mode") {
+		t.Errorf("exit %d, want 0 and a note that -ct is ignored\n%s", code, out)
+	}
+	if hit {
+		t.Error("-simulate -ct contacted the CT server")
+	}
+}
+
 // TestE2ELabRefusesCT: -ct reaches crt.sh, so lab mode refuses it.
 func TestE2ELabRefusesCT(t *testing.T) {
 	zone := filepath.Join("examples", "labs", "lab1-first-scan.zone")

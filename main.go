@@ -644,6 +644,12 @@ func run() (code int) {
 		out.Info("╚════════════════════════════════════════════════════════════════════╝")
 		out.Info("Simulation seed: %d (pass -seed %d to reproduce these results)", f.seed, f.seed)
 		out.Info("")
+		if f.ct {
+			// -ct is an HTTPS request to crt.sh: it would send the target
+			// off the machine despite the banner above (#150).
+			out.Info("Note: -ct is ignored in simulation mode, which sends nothing off the machine")
+			f.ct = false
+		}
 	}
 
 	pool, poolCode := loadPool(f, out)
