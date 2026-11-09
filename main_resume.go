@@ -83,6 +83,18 @@ func (p *resumePass) merge(ev scan.Event) scan.Event {
 	return ev
 }
 
+// withoutRefound drops from a resumed pass's final event the n names it found
+// again after restoring them from the state. The resume point repeats up to a
+// worker pool's worth of lookups, and the saved pass already counts those
+// names as processed and found, so merging would count them twice (#156).
+func withoutRefound(ev scan.Event, n int) scan.Event {
+	d := int64(n)
+	ev.Found = max(ev.Found-d, 0)
+	ev.Processed = max(ev.Processed-d, 0)
+	ev.Stats.Found = max(ev.Stats.Found-d, 0)
+	return ev
+}
+
 // remainingBudget is the -max-queries budget left for a resumed pass that had
 // already processed n names; ok is false once it is spent. Without the
 // subtraction, every interrupt and resume could exceed the cap again (#108).

@@ -760,8 +760,10 @@ func run() (code int) {
 	var targetResults []output.Result // the current target's results: -permute seeds, saved on interrupt
 	var takeovers []output.Result     // every target's takeover candidates, for -sarif
 	restored := map[string]bool{}     // names re-emitted from a -resume state
+	refound := 0                      // restored names a resumed pass found again (#156)
 	emitResult := func(ev scan.Event, permutation bool) {
 		if restored[ev.Domain] {
+			refound++
 			return
 		}
 		res := output.Result{Subdomain: ev.Domain, Records: ev.Records, Takeover: ev.Takeover, Permutation: permutation}
@@ -939,9 +941,10 @@ func run() (code int) {
 			mainF.maxQueries = left
 		}
 		if budgetLeft {
+			refound = 0
 			res = scanTarget(ctx, mainF, target, entries, maxAttempts, recordTypes, out, outWriter, emit)
 			if mainSaved != nil && res.done {
-				res.final = mainSaved.merge(res.final)
+				res.final = mainSaved.merge(withoutRefound(res.final, refound))
 			}
 		} else {
 			out.Info("%s: the -max-queries budget of %d was spent before the interrupt", target, f.maxQueries)
@@ -956,8 +959,15 @@ func run() (code int) {
 			if saved != nil {
 				prevPass = saved.Permute
 			}
+			refound = 0
 			res.permutation = runPermutationPass(ctx, f, target, entries, mainPassNames(targetResults), targetSeeds, prevPass, restoredHits,
 				maxAttempts, recordTypes, out, outWriter, emitPermutation)
+			if p := res.permutation; p != nil && refound > 0 {
+				p.found -= refound
+				if p.pass.done {
+					p.pass.final = withoutRefound(p.pass.final, refound)
+				}
+			}
 			if p := res.permutation; p != nil && p.pass.failed {
 				res.failed = true
 			}

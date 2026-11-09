@@ -133,6 +133,40 @@ func TestE2EResumePermute(t *testing.T) {
 	}
 }
 
+// TestE2EResumeCountsRefoundNamesOnce covers #156: the resume point lags the
+// saved results by up to a worker pool's worth of names, so a resumed scan
+// finds some of them again; they are counted once.
+func TestE2EResumeCountsRefoundNamesOnce(t *testing.T) {
+	var words strings.Builder
+	for i := 0; i < 20; i++ {
+		fmt.Fprintf(&words, "host%d\n", i)
+	}
+	wl := writeFile(t, "wl.txt", words.String())
+	args := []string{"-simulate", "-seed", "5", "-hit-rate", "100", "-t", "1", "-progress=false", "-format", "jsonl", "-w", wl, "example.com"}
+	entries, _, _ := wordlist.Build(strings.Split(words.String(), "\n"), "example.com")
+	// Ten names were found and processed, but only the first five entries
+	// were complete when the scan was interrupted.
+	var saved []output.Result
+	for _, e := range entries[:10] {
+		saved = append(saved, output.Result{Subdomain: e + ".example.com"})
+	}
+	path := writeState(t, resumeState{Args: args, Targets: []resumeTarget{{
+		Domain: "example.com", RootDone: 5, Processed: 10, Total: int64(len(entries)), Results: saved,
+		Stats: scan.Stats{Found: 10},
+	}}})
+	code, out := runCLI(t, "", "-resume", path)
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	got, s := jsonlRecords(t, out)
+	if len(resultNames(got)) != len(entries) {
+		t.Fatalf("%d unique names, want %d", len(resultNames(got)), len(entries))
+	}
+	if tg := s.Targets[0]; tg.Found != int64(len(entries)) || tg.Processed != int64(len(entries)) {
+		t.Errorf("found %d, processed %d; want %d each", tg.Found, tg.Processed, len(entries))
+	}
+}
+
 // TestE2EResumeKeepsQueryBudget covers #108: a resumed scan gets only what
 // is left of -max-queries, and none once it is spent.
 func TestE2EResumeKeepsQueryBudget(t *testing.T) {
