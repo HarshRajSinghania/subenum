@@ -55,6 +55,7 @@ type scanViewModel struct {
 	stopped   bool   // the scan stopped before testing candidates (preflight, wildcard abort, #99)
 	errText   string // first scan error; the reason shown for a failed scan
 	noAbort   bool   // -no-abort: an error with a finished scan is only a warning
+	outputErr bool   // the results file could not be written in full (#155)
 	width     int
 	height    int
 	simMode   bool

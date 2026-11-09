@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -207,5 +208,13 @@ func TestScanFailureStatusAndExitCode(t *testing.T) {
 	av = update(av, doneMsg{processed: 1, total: 5})
 	if av.failed() || !strings.Contains(av.View(), "Aborted") || exitCode(Model{scanView: av}) != 0 {
 		t.Errorf("user abort mis-rendered:\n%s", av.View())
+	}
+
+	// A completed scan whose results file failed to write exits 1, as the
+	// CLI does (#155).
+	om := Model{scanView: update(newScanViewModel(120, 40, false), doneMsg{processed: 5, total: 5})}
+	om.reportOutputErr(errors.New("disk full"))
+	if code := exitCode(om); code != 1 {
+		t.Errorf("output file error: exit code = %d, want 1", code)
 	}
 }

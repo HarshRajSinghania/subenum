@@ -65,8 +65,9 @@ func New(opts Options) Model {
 	}
 }
 
-// Start runs the TUI and returns an exit code: 1 if the TUI itself failed or
-// the last scan failed (#55), else 0.
+// Start runs the TUI and returns an exit code: 1 if the TUI itself failed,
+// the last scan failed (#55) or its results file could not be written
+// (#155), else 0.
 func Start(opts Options) int {
 	p := tea.NewProgram(New(opts), tea.WithAltScreen())
 	final, err := p.Run()
@@ -78,7 +79,7 @@ func Start(opts Options) int {
 
 // exitCode maps the final model to the process exit code.
 func exitCode(final tea.Model) int {
-	if m, ok := final.(Model); ok && m.scanView.failed() {
+	if m, ok := final.(Model); ok && (m.scanView.failed() || m.scanView.outputErr) {
 		return 1
 	}
 	return 0
@@ -334,6 +335,7 @@ func (m *Model) summary(done doneMsg) output.Summary {
 // reportOutputErr surfaces an output-file failure in the scan view.
 func (m *Model) reportOutputErr(err error) {
 	if err != nil {
+		m.scanView.outputErr = true
 		m.scanView.addMessage(errorStyle.Render("✗ output file incomplete: " + err.Error()))
 	}
 }
