@@ -11,7 +11,34 @@ import (
 
 	"github.com/TMHSDigital/subenum/internal/dns"
 	"github.com/TMHSDigital/subenum/internal/output"
+	"github.com/TMHSDigital/subenum/internal/scan"
 )
+
+// TestListenForEventsHandlesEveryKind covers #165: every engine event kind,
+// and one the TUI does not know, becomes a message, and an unknown kind
+// re-arms the listener instead of stalling the scan.
+func TestListenForEventsHandlesEveryKind(t *testing.T) {
+	unknown := scan.EventDone + 1
+	for k := scan.EventResult; k <= unknown; k++ {
+		events := make(chan scan.Event, 1)
+		events <- scan.Event{Kind: k}
+		if msg := listenForEvents(events)(); msg == nil {
+			t.Errorf("event kind %d produced no message", k)
+		}
+	}
+
+	events := make(chan scan.Event, 2)
+	events <- scan.Event{Kind: unknown}
+	events <- scan.Event{Kind: scan.EventDone}
+	m := Model{state: stateScan, events: events, scanView: newScanViewModel(80, 24, false)}
+	_, cmd := m.Update(listenForEvents(events)())
+	if cmd == nil {
+		t.Fatal("an unknown event kind did not re-arm the listener")
+	}
+	if len(events) != 1 {
+		t.Fatalf("%d events left, want the EventDone still queued", len(events))
+	}
+}
 
 // TestFinalizeOutputGatesStructuredOutput locks in the TUI's replication of the
 // CLI contract: structured output is finalized only on the success path

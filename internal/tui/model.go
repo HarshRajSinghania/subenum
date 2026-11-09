@@ -259,7 +259,7 @@ func (m Model) updateScan(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.out.ResultWithHint(msg.domain, msg.records, msg.takeover)
 		}
 		return m, tea.Batch(svCmd, listenForEvents(m.events))
-	case progressMsg, wildcardMsg, errorMsg:
+	case progressMsg, wildcardMsg, errorMsg, ignoredEventMsg:
 		return m, tea.Batch(svCmd, listenForEvents(m.events))
 	case doneMsg:
 		// Successful completion (including user abort, which still drains and
@@ -376,6 +376,11 @@ func listenForEvents(events <-chan scan.Event) tea.Cmd {
 			}
 			return doneMsg{processed: ev.Processed, total: ev.Total, found: ev.Found, stats: ev.Stats}
 		}
-		return nil
+		// A kind this view does not know yet must not stall the scan: the
+		// listener is re-armed for it like any other event (#165).
+		return ignoredEventMsg{}
 	}
 }
+
+// ignoredEventMsg stands for an engine event the TUI does not display.
+type ignoredEventMsg struct{}
