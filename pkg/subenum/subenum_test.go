@@ -186,6 +186,30 @@ func TestSimulateIsReproducibleAndSendsNothing(t *testing.T) {
 	}
 }
 
+// TestSimulateSeedZeroIsRandom covers #154: Seed 0 picks a random seed, so
+// two scans of the same words differ.
+func TestSimulateSeedZeroIsRandom(t *testing.T) {
+	words := make([]string, 0, 200)
+	for i := range 200 {
+		words = append(words, fmt.Sprintf("host%d", i))
+	}
+	cfg := subenum.Config{Domain: "example.com", Words: words, Simulate: true}
+	first, _, err := subenum.Scan(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _, err := subenum.Scan(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b := names(first), names(second)
+	slices.Sort(a)
+	slices.Sort(b)
+	if slices.Equal(a, b) {
+		t.Errorf("Seed 0 gave the same results twice: %v", a)
+	}
+}
+
 func TestCancellationStopsTheScan(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

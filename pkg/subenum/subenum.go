@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"slices"
 	"strings"
 	"sync"
@@ -489,6 +490,11 @@ func (c Config) options() (scan.Options, error) {
 		return scan.Options{}, ErrNoWords
 	}
 
+	seed := c.Seed
+	for c.Simulate && seed == 0 {
+		seed = rand.Uint64() // as documented, and as the CLI and TUI do (#154)
+	}
+
 	opts := scan.Options{
 		Domain:      domain,
 		Entries:     entries,
@@ -497,7 +503,7 @@ func (c Config) options() (scan.Options, error) {
 		DNSServer:   resolver,
 		Simulate:    c.Simulate,
 		HitRate:     orDefault(c.HitRate, DefaultHitRate),
-		Seed:        c.Seed,
+		Seed:        seed,
 		Attempts:    orDefault(c.Attempts, DefaultAttempts),
 		Force:       c.Force,
 		Types:       types,
